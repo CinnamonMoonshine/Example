@@ -1,91 +1,121 @@
-public class BlockRender : AbstractBlockRender
+public class BlockRender
 {
-    private readonly Vector3[] RightVertices;
-    private readonly Vector3[] LeftVertices;
-    private readonly Vector3[] UpVertices;
-    private readonly Vector3[] DownVertices;
-    private readonly Vector3[] ForwardVertices;
-    private readonly Vector3[] BackwardVertices;
-    private readonly Vector2[] UVs;
+    List<Vector3> chunkVerts;
+    List<Vector2> chunkUVs;
+    List<uint> chunkIndices;
 
-    public BlockRender(uint id, Vector3[] rightVertices, Vector3[] leftVertices, Vector3[] upVertices,
-        Vector3[] downVertices, Vector3[] forwardVertices, Vector3[] backwardVertices, Vector2[] uvs) : base(id)
+    const int SIZE = 16;
+    const int HEIGHT = 32;
+    public Vector3 position;
+
+    public uint indexCount;
+
+    VAO chunkVAO;
+    VBO chunkVertexVBO;
+    VBO chunkUVVBO;
+    IBO chunkIBO;
+
+    Image2D texture;
+    public BlockRender(Vector3 position)
     {
-        RightVertices = rightVertices;
-        LeftVertices = leftVertices;
-        UpVertices = upVertices;
-        DownVertices = downVertices;
-        ForwardVertices = forwardVertices;
-        BackwardVertices = backwardVertices;
-        UVs = uvs;
+        this.position = position;
+
+        chunkVerts = new List<Vector3>();
+        chunkUVs = new List<Vector2>();
+        chunkIndices = new List<uint>();
+
+        GenBlocks();
+        BuildChunk();
     }
-    
-    public override (Vector3[] vertices, Vector2[] uvs) GetBlockSidesData(BlockSide blockSide, Rectangle uvPosition, Vector3 blockPosition)
-    {
-        Vector3[] sideData = blockSide switch
-        {
-            BlockSide.RIGHT => RightVertices,
-            BlockSide.LEFT => LeftVertices,
-            BlockSide.UP => UpVertices,
-            BlockSide.DOWN => DownVertices,
-            BlockSide.FORWARD => ForwardVertices,
-            BlockSide.BACKWARD => BackwardVertices
-        };
-        Vector3[] sideDataValue = new Vector3[sideData.Length];
-        for (int i = 0; i < sideData.Length; i++)
-        {
-            sideDataValue[i] = sideData[i] + blockPosition;
-        }
-        Vector2[] uvDataValue = new Vector2[UVs.Length];
-        for (int i = 0; i < UVs.Length; i++)
-        {
-            Vector2 uv = UVs[i];
 
-            uv.X = uvPosition.X + uv.X * uvPosition.Width;
-            uv.Y = uvPosition.Y + uv.Y * uvPosition.Height;
-            uv.X /= Constants.AtlasSizeX;
-            uv.Y /= Constants.AtlasSizeY;
+    public void GenBlocks() { 
+        for(int i = 0; i < 16; i++)
+        {
+            Block block = new Block(new Vector3(i, 0, 0), 0);
 
-            uvDataValue[i] = uv;
+            int faceCount = 0;
+
+            if(i == 0)
+            {
+                var leftFaceData = block.GetFace(Faces.LEFT);
+                chunkVerts.AddRange(leftFaceData.vertices);
+                chunkUVs.AddRange(leftFaceData.uv);
+                faceCount++;
+            }
+            if (i == 2)
+            {
+                var rightFaceData = block.GetFace(Faces.RIGHT);
+                chunkVerts.AddRange(rightFaceData.vertices);
+                chunkUVs.AddRange(rightFaceData.uv);
+                faceCount++;
+            }
+
+            var frontFaceData = block.GetFace(Faces.FRONT);
+            chunkVerts.AddRange(frontFaceData.vertices);
+            chunkUVs.AddRange(frontFaceData.uv);
+
+            var backFaceData = block.GetFace(Faces.BACK);
+            chunkVerts.AddRange(backFaceData.vertices);
+            chunkUVs.AddRange(backFaceData.uv);
+
+            var topFaceData = block.GetFace(Faces.TOP);
+            chunkVerts.AddRange(topFaceData.vertices);
+            chunkUVs.AddRange(topFaceData.uv);
+
+            var bottomFaceData = block.GetFace(Faces.BOTTOM);
+            chunkVerts.AddRange(bottomFaceData.vertices);
+            chunkUVs.AddRange(bottomFaceData.uv);
+
+            faceCount += 4;
+
+            AddIndices(faceCount);
         }
-        return (sideDataValue, uvDataValue);
     }
-    public override (Vector3[] vertices, Vector2[] uvs)[] GetBlockSidesData((BlockSide blockSide, Rectangle uvPosition)[] sides, Vector3 blockPosition)
+    public void AddIndices(int amtFaces)
     {
-        (Vector3[], Vector2[])[] data = new (Vector3[], Vector2[])[sides.Length];
-        
-        for (int i = 0; i < sides.Length; i++)
+        for(int i = 0; i < amtFaces; i++)
         {
-            (BlockSide blockSide, Rectangle uvPosition) = sides[i];
-            
-            Vector3[] sideData = blockSide switch
-            {
-                BlockSide.RIGHT => RightVertices,
-                BlockSide.LEFT => LeftVertices,
-                BlockSide.UP => UpVertices,
-                BlockSide.DOWN => DownVertices,
-                BlockSide.FORWARD => ForwardVertices,
-                BlockSide.BACKWARD => BackwardVertices
-            };
-            Vector3[] sideDataValue = new Vector3[sideData.Length];
-            for (int j = 0; j < sideData.Length; j++)
-            {
-                sideDataValue[j] = sideData[j] + blockPosition;
-            }
-            Vector2[] uvDataValue = new Vector2[UVs.Length];
-            for (int j = 0; j < UVs.Length; j++)
-            {
-                Vector2 uv = UVs[j];
+            chunkIndices.Add(0 + indexCount);
+            chunkIndices.Add(1 + indexCount);
+            chunkIndices.Add(2 + indexCount);
+            chunkIndices.Add(2 + indexCount);
+            chunkIndices.Add(3 + indexCount);
+            chunkIndices.Add(0 + indexCount);
 
-                uv.X = uvPosition.X + uv.X * uvPosition.Width;
-                uv.Y = uvPosition.Y + uv.Y * uvPosition.Height;
-                uv.X /= Constants.AtlasSizeX;
-                uv.Y /= Constants.AtlasSizeY;
-
-                uvDataValue[j] = uv;
-            }
-            data[i] = (sideDataValue, uvDataValue);
+            indexCount += 4;
         }
-        return data;
+    }
+    public void BuildChunk() {
+        chunkVAO = new VAO();
+        chunkVAO.Bind();
+
+        chunkVertexVBO = new VBO(chunkVerts);
+        chunkVertexVBO.Bind();
+        chunkVAO.LinkToVAO(0, 3, chunkVertexVBO);
+
+        chunkUVVBO = new VBO(chunkUVs);
+        chunkUVVBO.Bind();
+        chunkVAO.LinkToVAO(1, 2, chunkUVVBO);
+
+        chunkIBO = new IBO(chunkIndices);
+
+        texture = Image2D.BlockFolder("chunk.png");
+    }
+    public void Render(int shaderProgram)
+    {
+        GL.UseProgram(shaderProgram);
+        chunkVAO.Bind();
+        chunkIBO.Bind();
+        texture.Bind();
+        GL.DrawElements(PrimitiveType.Triangles, chunkIndices.Count, DrawElementsType.UnsignedInt, 0);
+    }
+
+    public void Delete()
+    {
+        chunkVAO.Delete();
+        chunkVertexVBO.Delete();
+        chunkUVVBO.Delete();
+        chunkIBO.Delete();
+        texture.Delete();
     }
 }
